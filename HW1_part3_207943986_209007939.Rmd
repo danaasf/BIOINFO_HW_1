@@ -1,0 +1,157 @@
+---
+title: "HW1 - solution template"
+date: "November 25th,19"
+output: pdf_document
+---
+
+ID1: 207943986
+ID2: 209007939
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+```
+
+# a - Loading the gene tables
+
+```{r load data}
+#for loading the data we used the function read.table in order to 
+#import the data from the type txt and save it into the variable
+#which we denoted as: “data” as a table form in the following order: 
+
+data <- read.delim("C:/Users/danaa/Downloads/genes.txt" , header=T , comment.char ="")
+
+```
+
+# b - Explore the data
+after exploring the data in that table by using the console, we have noticed that the columns represent attributes as written below: 
+column 1 = names 
+column 2 = location on which chromosome 
+column 3 = strand with 2 levels, “-” & “+” 
+column 4,5 = the starting point and the ending point of the transcripted length - respectively  
+column 6,7 the starting point and the ending point of coding region - respectively 
+column 8 = exon count 
+we need to present the data in a different form or as plots to seek conclusions about what is asked in the questions: 
+```{r Explore the data}
+#before using each name as its own class,
+#we first used the function attach to attach all the data : 
+#attach(data1)
+#and we saved each name in class as it showed us the name: 
+#> names(data)
+#[1] "X.name"    "chrom"     "strand"    "txStart"  
+#[5] "txEnd"     "cdsStart"  "cdsEnd"    "exonCount"
+#[9] "name2"   
+
+
+#a)location: 
+#table1 <- table(X.name,chrom)
+#we saved the information we need in the variable table1 
+#for future use and now we used the function barplot() to :
+#show the data in a plot, we chose the X-axis to be the chrom 
+#and the Y-axis to be the location on chromosome (chI/chII/chIII…etc.) 
+ggplot(data, aes(x = chrom, y = txStart)) + geom_point()
+#b)strand orientation 
+#we chose the present the data in a table
+#frequency table with condition using table function in R
+ 
+table(data$strand)
+
+#c)number of exons:
+#and for that we chose to present in a boxplot
+#a simple and informative method 
+#pretty boxplots
+ggplot(data,aes(x = chrom, y = exonCount , fill = chrom)) + geom_boxplot(alpha=0.7) + 
+  stat_summary(fun.y=mean, geom="point", 
+               shape=20, size=3, color="green", fill="green")
+
+#d)length of the transcripted region:
+
+ggplot(data,aes(x =chrom, y = txEnd-txStart , fill = chrom)) + geom_boxplot(alpha=0.7) + 
+  stat_summary(fun.y=mean, geom="point",
+               shape=20, size=5, color="red", fill="red") 
+
+
+```
+
+# c - Find unique chromosome 
+H0: there is no unique chromosome testing each attribute. 
+we need to find significantly different chromosome from a single attribute of choice. 
+if we take a look at the plots of the exons count we conclude that the chromosome M is different(H1). and for proving this matter,we used the two sample t-test.
+
+we will have a helping matrix *of one column* that will lead us to the specific amount of exons in the chromosome M that according to our observations and assumption : 
+
+```{r Find unique chromosome}
+
+mat1 <- data$exonCount #the exons count organized in a column
+mat2 <- unique(data$chrom) #returns a column with the names of all chromosomes 
+mat3 <- data$chrom
+index<- mat2=="chrM"
+chrm <- mat1[index]
+#show(mat1)
+#show(mat2)
+for (chr in mat2) {
+  if (chr == "chrM")
+    next 
+    count<-mat1[mat3==chr]
+  result = t.test (count,chrm,paired=FALSE, var.equal=TRUE)
+  show(result)
+}
+
+
+#the two-sample t-test is one of the most commonly used 
+#hypothesis tests. It is applied to compare whether the
+#average difference between two groups is really significant
+#or if it is due instead to random chance.
+    
+```
+
+# d - explanation
+
+from the graph that shows the exonCount as a function of the chromosome we can tell that the number of exons is the largest among chrM: 
+we tested that using the two sample t-test which allows checking H0 by statistical methods, and H1: 
+
+
+```{r proof}
+ 
+ggplot(data,aes(x = chrom, y = exonCount , fill = chrom)) + geom_boxplot(alpha=0.7) + 
+  stat_summary(fun.y=mean, geom="point",
+               shape=20, size=3, color="green", fill="green")
+
+#therefore, H0 is rejected 
+```
+
+# e - Identify ribosomal protein genes
+Adding a column with a test for each gene - "Is it in the list of ribosomal protein genes?"
+```{r rpg}
+dataframe1 <- as.data.frame.matrix(data)
+data2<- read.table("C:/Users/danaa/Downloads/RPGs_yeast.txt", header = T, comment.char="")
+
+data$new_col <- data$name2 %in% data2$RPS0A
+#show(data)
+```
+
+# f -8 Find unique property
+From the plot we drew , we can see a huge difference in the number of exons between ribosomal genes and regular ones, after observing multiple traits , we concluded that this is the most unique/significant one and we use wilixon's test to prove it  : 
+
+
+
+```{r Find unique property}
+#insert plot
+ggplot(data,aes(x = new_col, y = exonCount, fill = new_col)) + geom_boxplot(alpha=0.7) + stat_summary(fun.y=mean, geom="point", shape=20, size=5, color="red", fill="red") 
+
+
+#using statistical tests to prove our hypothesis: 
+
+rpg_exon_count<- data$exonCount[data$new_col == "TRUE"]
+normal_exon_count<- data$exonCount[data$new_col == "FALSE"]
+  
+res <- wilcox.test(rpg_exon_count, normal_exon_count)
+show(res)
+
+```
+
+# g - explanation
+The number of exons almost (approximately) matches the number of intron because on average, there are 8.8 exons and 7.8 introns per gene.
+Introns regulate the production of ribosomal proteins by modulating splicing of duplicated ribosomal protein genes. 
+Therefore the number of exons is larger. 
