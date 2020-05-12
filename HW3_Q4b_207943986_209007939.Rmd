@@ -1,0 +1,71 @@
+---
+title: "Untitled"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+opts_chunk$set(message=FALSE, warning=FALSE, eval=TRUE, echo=TRUE, cache=TRUE)
+library(ggplot2)
+theme_set(theme_bw(base_size=16) + theme(strip.background = element_blank()))
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tibble)
+library(magrittr)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r importing data}
+# load data
+
+
+FIMO_seqs1 <- NULL
+FIMO_seqs2 <- NULL
+
+FIMO_seqs1 <- read.delim("C:/Users/danaa/downloads/FIMO_seqs1.tsv", header =T , comment.char = "")
+FIMO_seqs2 <- read.delim("C:/Users/danaa/downloads/FIMO_seqs2.tsv", header =T , comment.char = "")
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+our hypothesis based on both of the histograms is that the p.values decreases and for that we used the t.test and wilixon's test to prove it:
+
+```{r pressure, echo=FALSE}
+#distribution of p.value 
+hist(FIMO_seqs1$p.value,xlab = "p.value distribution", breaks = 15,col="chocolate",
+border="brown",main="seqs1 p.value distribution")
+
+hist(FIMO_seqs2$p.value,xlab = "p.value distribution", breaks = 15,col="lavender",
+border="purple",main="seqs2 p.value distribution")
+
+#testing the hypothesis
+#hypothesis null is that the p.value does not change 
+#alternative hypothesis: true difference in means is not equal to 0 and 
+
+  result1 = t.test (FIMO_seqs1$p.value,FIMO_seqs2$p.value,paired=FALSE, var.equal=TRUE)
+  show(result1)
+
+  result2 <- wilcox.test(FIMO_seqs1$p.value,FIMO_seqs2$p.value)
+  show(result2)
+  boxplot(FIMO_seqs1$p.value[1:1348]~FIMO_seqs2$p.value)
+    
+    
+ #ggplot(FIMO_seqs2,aes(x =p.value, y = FIMO_seqs1$p.value[1:1348], fill = p.value)) + geom_boxplot(alpha=0.7) + stat_summary(fun.y=mean, geom="point", shape=20, size=5, color="red", fill="red") 
+  
+  
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

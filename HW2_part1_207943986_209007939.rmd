@@ -1,0 +1,351 @@
+---
+title: "HW2 - Differential gene expression analysis"
+author: "Leon"
+date: "23 11 2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r init, include=F}
+library(knitr)
+opts_chunk$set(message=FALSE, warning=FALSE, eval=TRUE, echo=TRUE, cache=TRUE)
+library(ggplot2)
+theme_set(theme_bw(base_size=16) + theme(strip.background = element_blank()))
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tibble)
+library(magrittr)
+# Ste this variable to FALSE to skip DESEQ2 related parts and speed up thereport generation.
+run_deseq = T
+```
+<span style="color:red">update this</span>  
+Submitted by:  
+ID1: 209007939
+Name1: Ilan Doron
+ID2: 207943986
+Name2: Dana Asfour
+
+# The Biology
+<span style="color:red">update this</span>  
+
+# Data
+<span style="color:red">update this</span>  
+This data was downloaded from  ([MarioniLab github](https://github.com/MarioniLab/ImmuneAging2017))  
+
+# Analysis
+## Import count data and metadata
+
+```{r import data}
+# load data
+
+
+rawcounts <- NULL
+metadata  <- NULL
+
+metadata <- read.delim("C:/Users/danaa/Documents/introduction_to_bioinformatics/metadata.tab", header =T , comment.char = "")
+rawcounts <- read.delim("C:/Users/danaa/Documents/introduction_to_bioinformatics/raw_data.tab", header =T , comment.char = "")
+```
+
+## General information on the data
+
+Explore samples
+a) by looking at the dataset we can notice that there are not a few cells so we calculated their number using the built in function unique 
+b)from exploring the dataset again we notice that the most common organsim is Mus musculus but to make sure we switched to code and we made sure that the organism in mus musculus 
+c)we want to test the effect of age on the stimulation and by looking at the metadata table and the plot we created we can see that there is an obvious effect because the age splits them into 3 different group/categories
+d)we counted the genes by using a loop and the built-in function unique to filter duplication
+e)the question we ask is: how many celltypes are in each strain? and we can by the graoh that for one strain there is one kind of cell and for the other one there are 3. 
+```{r sample info}
+# exploration
+#A
+count=0 #number of cells initionalized 
+for (i in unique(metadata$CellName))
+  count<-count+1 
+result<-count
+print(result)
+#B
+print(unique(metadata$strain))
+#C
+ggplot(metadata,aes(x =Age, y = Stimulus , fill = Age)) + geom_boxplot(alpha=0.7) + stat_summary(fun.y=mean, geom="point", shape=20, size=5, color="red", fill="red") 
+#D
+count2=0 #number of genes initionalized 
+for (j in unique(rawcounts$gene))
+  count2<-count2+1 
+result2<-count2
+print(result2)
+#E
+#answering the biological question we asked above: 
+ggplot(metadata,aes(x = strain, y = Celltype, fill = strain)) + geom_boxplot(alpha=0.6) + stat_summary(fun.y=mean, geom="point", shape=100, size=5, color="red", fill="red") 
+```
+
+## Filter the data
+### remove cells using metadata
+a. Strain = “Mus musculus domesticus”
+b. Cell type = “MACS-purified Naive”
+c. Stimulus != “Activated” (keep all excluding “Activated” cells)
+
+```{r filter}
+#filtered_rawcounts # 31181x510 dataframe (with cell names as column names and gene names as index)
+#filtered_metadata # 510x6 dataframe (with cell names as index)
+# filter by cell type
+# filter by stimuls
+# filter by strain 
+filtered_metadata  <- NULL
+filtered_rawcounts <- NULL
+filtered_metadata<-metadata
+filtered_metadata <- metadata[metadata$strain == "Mus musculus domesticus" & metadata$Celltype == "MACS-purified Naive" & metadata$Stimulus != "Activated",]
+
+#filtering rawcounts
+#keeps<- filtered_metadata$CellName
+#filtered_rawcounts <-rawcounts[keeps]
+filtered_rawcounts <- rawcounts[which((names(rawcounts) %in% union(filtered_metadata$CellName,"gene")))]
+#we used union to attach the gene names to the filtered rawcounts table so we make it easier to filter in the section 4(a)
+#names gets the name if the column 
+
+```
+
+### remove cells using quality control
+as we are asked to do, for each sample we need to calculate the correlation between the 92 count values for these synthetic genes and their known concentrations.
+the correlation is calculated on a set of (x,y) value pairs. in our example, for each sample, we have 92 such pairs, each of which represents an ERCC gene. The x value is the known concentration from the ERCC_conc file and the y value is the count of that gene in the tested sample.
+If you give the function cor two parameters X and Y where X is a vector of x values and Y is the vector of corresponding y values (the order must match) the result would be the correlation between X and Y.
+```{r qc}
+# load ERCC concentrations (remember to re-order by name)
+ERCC_conc <- NULL
+ERCC_conc<-read.delim("C:/Users/danaa/Documents/introduction_to_bioinformatics/ERCC_conc.tab", header =T)
+
+# split spike-ins (ERCC) and genes
+#The counts data table contains 31,089 rows of the form ENSMUSG#### - these are real genes that their expression was measured.
+#In addition, there are 92 rows of the form ERCC-#### - these are "synthetic genes" that were introduced to each sample in known concentrations for quality control.
+filtered_ERCCcounts  <- NULL
+filtered_genecounts  <- NULL
+correlation <-NULL
+#ERCC/sythentic genes
+filtered_ERCCcounts <- filter(filtered_rawcounts,filtered_rawcounts$gene %in% ERCC_conc$ERCC.ID)
+#real genes
+filtered_genecounts <- filter(filtered_rawcounts ,!(filtered_rawcounts$gene %in% ERCC_conc$ERCC.ID))
+###we have to sort the counts first
+#ask about it 
+
+#sorting the counts 
+filtered_ERCCcounts_sorted <-filtered_ERCCcounts[order(filtered_ERCCcounts$gene),]
+ERCC_conc <- ERCC_conc[order(ERCC_conc$ERCC.ID),]
+
+# correlation to cells
+correlations <- apply(filtered_ERCCcounts_sorted[,-1],2,cor ,ERCC_conc$concentration)
+#show (correlations)
+
+hist(correlations,xlab = "correlation", breaks = 15,main ="calculated correlation")
+
+
+#good sample
+#cat(set)
+best_cor<-which.max(correlations)
+good_sample<-correlations[best_cor]
+##does not work in a loop form, can you ask leon about it?
+#for (i in filtered_ERCCcounts_sorted)
+#{
+#  if (is.logical(correlations[i]==best_cor))
+#    good_sample<-filtered_ERCCcounts_sorted$gene[i]
+#}
+show(good_sample)
+
+# bad sample
+worst_cor<-which.min(correlations)
+bad_sample<-correlations[worst_cor]
+#for (i in filtered_ERCCcounts_sorted)
+#{
+#  if (is.logical(correlations[i]==worst_cor))
+#    bad_sample<-filtered_ERCCcounts_sorted$gene[i]
+#}
+show(bad_sample)
+# keep only highly correlated
+cor_thresh <- 0.8
+highly_correlated <- NULL
+##this also does not work in a loop form, i have no clue why but i will use normal array functions
+highly_correlated <- correlations[correlations>cor_thresh]
+#for (i in length(correlations)){
+#  if( correlations[i] > cor_thresh) {
+#names is a built-in function that shows us the name of a vector 
+#filtered_ERCCcounts [i+1] due to placing a column named gene at the beginning of the table 
+#    append(highly_correlated,names(filtered_ERCCcounts[i+1]))
+ # }
+#}
+#highly_correlated<-table(highly_correlated)
+###try using subset 
+filtered_metadata <- filtered_metadata %>% subset(CellName %in% names(highly_correlated))
+##TO DO we need to filter ERCC counts and genes as well!!!
+filtered_ERCCcounts_sorted <- filtered_ERCCcounts_sorted[which(names(filtered_ERCCcounts_sorted) %in% union(filtered_metadata$CellName, "gene"))]
+
+filtered_genecounts <- filtered_genecounts[which(names(filtered_genecounts) %in% union(filtered_metadata$CellName, "gene"))]
+
+#we have to stay with 307 
+#filtered_ERCC %>% filter (concentration , gt(cor_thresh))
+#filtered_metadata    <- NULL
+#filtered_genecounts  <- NULL
+#filtered_ERCCcounts  <- NULL
+
+```
+
+### remove unexpressed genes
+The number of expressed genes per sample
+```{r expressed genes}
+# expression distribution
+expressedgenes <- colSums(filtered_ERCCcounts_sorted[ ,-1] >= 1)
+
+expressedgenes<-as.data.frame(expressedgenes)
+ggplot(expressedgenes,aes(expressedgenes)) + geom_histogram(bins = 10)
+
+
+# remove unexpressed
+mean_expresion_thres <- 5
+
+new<-filtered_genecounts
+new$gene<-NULL
+avg <- rowMeans(new)
+
+filtered_high <- filtered_genecounts[new %>% apply(1,mean) >= mean_expresion_thres,]
+#means gets the average of the rows
+#filtered_genecounts  <- NULL # 9088x307 dataframe (with cell names as column names and gene names as index)
+```
+
+## DESeq2 analysis
+
+```{r loadDESeq2 ,include = F, warning= F}
+library(DESeq2)
+```
+
+### split mice by age
+```{r age split}
+# Young
+young_metadata    <- NULL # 50x6 dataframe (with cell names as index)
+young_genecounts <- NULL # 9088x50 dataframe (with cell names as column names and gene names as index)
+young_metadata    <- filtered_metadata[filtered_metadata$Age == "Young", ]
+young_genecounts <- filtered_high[,which( names(filtered_high) %in%  union(young_metadata$CellName, "gene"))]
+
+# Old
+old_metadata    <- NULL # 50x6 dataframe (with cell names as index)
+old_genecounts <- NULL # 9088x50 dataframe (with cell names as column names and gene names as index)
+
+old_metadata    <- filtered_metadata[filtered_metadata$Age == "Old",]
+old_genecounts <- filtered_high[, which(names(filtered_high) %in%  union(old_metadata$CellName, "gene"))]
+
+
+#leaving random 50 
+old_metadata<-sample (old_metadata, size=50, replace=T)
+young_metadata<-sample (young_metadata, size=50, replace=T)
+
+
+#c showing the summary of the difference
+summary(old_metadata)
+summary(young_metadata)
+summary(old_genecounts)
+summary(young_genecounts)
+```
+
+
+### Importing data
+
+now we can construct the DESeq2 datasets
+```{r constructDDS}
+# Young
+#young_geneconunts$gene<-NULL
+#old_geneconunts$gene<-NULL
+
+young_dds <- DESeqDataSetFromMatrix(countData=select(young_genecounts,-1), colData=young_metadata, design=~Stimulus)
+#young_dds
+
+# Old
+old_dds <- DESeqDataSetFromMatrix(countData=select(old_genecounts,-1), colData=old_metadata, design=~Stimulus)
+#old_dds
+```
+
+
+### Run the DESeq pipeline
+We run the DESe12 pipline:
+```{r deseq_pipeline, eval = run_deseq}
+# Young
+young_dds <- DESeq(young_dds)
+# Old
+old_dds <- DESeq(old_dds)
+```
+
+
+### Getting results
+first look at the resuts
+```{r getResults, eval = run_deseq}
+# Young
+young_res <- results(young_dds, tidy=TRUE)
+young_res <- tbl_df(young_res)
+
+# Old
+old_res <- results(old_dds, tidy=TRUE)
+old_res <- tbl_df(old_res)
+```
+
+
+```{r sort results, eval = run_deseq}
+# Young
+young_res_sorted <- young_res %>% arrange(padj)
+
+# Old
+old_res_sorted   <- old_res  %>% arrange(padj)
+```
+
+
+```{r DE genes, eval = run_deseq}
+blw_001_young <- young_res_sorted %>% mutate(sig=padj<0.01)
+blw_001_young %>% 
+  group_by(sig) %>% 
+  summarize(n=n())
+# Old
+blw_001_old <- old_res_sorted %>% mutate(sig=padj<0.01)
+blw_001_old %>% 
+  group_by(sig) %>% 
+  summarize(n=n())
+
+
+```
+
+
+```{r save results, eval = run_deseq}
+ #write_csv(young_res_soretd,"DESEQ_results_young.csv")
+ #write_csv(old_res_soretd,"DESEQ_results_old.csv")
+```
+
+## Data Visualization
+
+### MA & Volcano plots
+
+```{r MA plot, eval = run_deseq}
+#Young
+blw_001_young %>% ggplot(aes(baseMean, log2FoldChange, col=sig)) + geom_point() + scale_x_log10() + ggtitle("Young MA plot")
+
+# Old
+blw_001_old %>% ggplot(aes(baseMean, log2FoldChange, col=sig)) + geom_point() + scale_x_log10() + ggtitle("Old MA plot")
+```
+
+
+```{r volcanoplot, eval = run_deseq}
+#Young
+blw_001_young %>% ggplot(aes(log2FoldChange, -1*log10(pvalue), col=sig)) + geom_point() + ggtitle("Young Volcano plot")
+
+
+# Old
+blw_001_old %>% ggplot(aes(log2FoldChange, -1*log10(pvalue), col=sig)) + geom_point() + ggtitle("Old Volcano plot")
+```
+
+### Plotting counts
+it didn't run in the code due to some bug we couldn't solve but we know that these are the function we have to use from the 4th tutorial
+plotCounts(old_dds, gene="ENSMUSG00000000157", intgroup="Stimulus", returnData = TRUE) %>%   ggplot(aes(Stimulus, count)) + geom_boxplot(aes(fill=Stimulus)) 
+
+plotCounts(young_dds, gene="ENSMUSG00000000157", intgroup="Stimulus", returnData = TRUE) %>%   ggplot(aes(Stimulus, count)) + geom_boxplot(aes(fill=Stimulus)) 
+```{r plot DE gene, eval = run_deseq}
+
+#check the tutorial number 4 in html form it's similar 
+#for some reason it did not work because we have a bug in the dds that we couldn't figure out 
+
+#plotCounts(old_dds, gene="ENSMUSG00000000157", intgroup="Stimulus", returnData = TRUE) %>%   ggplot(aes(Stimulus, count)) + geom_boxplot(aes(fill=Stimulus)) 
+
+#plotCounts(young_dds, gene="ENSMUSG00000000157", intgroup="Stimulus", returnData = TRUE) %>%   ggplot(aes(Stimulus, count)) + geom_boxplot(aes(fill=Stimulus)) 
+```
